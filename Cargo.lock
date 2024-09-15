@@ -3707,7 +3707,6 @@ dependencies = [
  "futures-executor",
  "futures-intrusive",
  "futures-util",
- "libsqlite3-sys",
  "log",
  "percent-encoding",
  "regex",

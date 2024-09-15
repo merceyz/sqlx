@@ -1,8 +1,5 @@
 use std::fmt::{self, Display, Formatter};
-use std::os::raw::c_int;
 use std::str::FromStr;
-
-use libsqlite3_sys::{SQLITE_BLOB, SQLITE_FLOAT, SQLITE_INTEGER, SQLITE_NULL, SQLITE_TEXT};
 
 use crate::error::BoxDynError;
 
@@ -10,7 +7,7 @@ pub(crate) use sqlx_core::type_info::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "offline", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) enum DataType {
+pub enum DataType {
     // These variants should correspond to `SQLITE_*` type constants.
     Null,
     /// Note: SQLite's type system has no notion of integer widths.
@@ -40,7 +37,7 @@ pub(crate) enum DataType {
 /// Type information for a SQLite type.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "offline", derive(serde::Serialize, serde::Deserialize))]
-pub struct SqliteTypeInfo(pub(crate) DataType);
+pub struct SqliteTypeInfo(pub DataType);
 
 impl Display for SqliteTypeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -67,21 +64,6 @@ impl TypeInfo for SqliteTypeInfo {
             DataType::Date => "DATE",
             DataType::Time => "TIME",
             DataType::Datetime => "DATETIME",
-        }
-    }
-}
-
-impl DataType {
-    pub(crate) fn from_code(code: c_int) -> Self {
-        match code {
-            SQLITE_INTEGER => DataType::Integer,
-            SQLITE_FLOAT => DataType::Float,
-            SQLITE_BLOB => DataType::Blob,
-            SQLITE_NULL => DataType::Null,
-            SQLITE_TEXT => DataType::Text,
-
-            // https://sqlite.org/c3ref/c_blob.html
-            _ => panic!("unknown data type code {code}"),
         }
     }
 }

@@ -6,9 +6,7 @@
     clippy::cast_sign_loss
 )]
 use crate::connection::intmap::IntMap;
-use crate::connection::{execute, ConnectionState};
 use crate::error::Error;
-use crate::from_row::FromRow;
 use crate::logger::{BranchParent, BranchResult, DebugDiff};
 use crate::type_info::DataType;
 use crate::SqliteTypeInfo;
@@ -367,39 +365,13 @@ fn opcode_to_type(op: &str) -> DataType {
 }
 
 fn root_block_columns(
-    conn: &mut ConnectionState,
+    table_block_columns: &[(i64, i64, i64, String, bool)],
 ) -> Result<HashMap<(i64, i64), IntMap<ColumnType>>, Error> {
-    let table_block_columns: Vec<(i64, i64, i64, String, bool)> = execute::iter(
-        conn,
-        "SELECT s.dbnum, s.rootpage, col.cid as colnum, col.type, col.\"notnull\"
-         FROM (
-             select 1 dbnum, tss.* from temp.sqlite_schema tss
-             UNION ALL select 0 dbnum, mss.* from main.sqlite_schema mss
-             ) s
-         JOIN pragma_table_info(s.name) AS col
-         WHERE s.type = 'table'
-         UNION ALL
-         SELECT s.dbnum, s.rootpage, idx.seqno as colnum, col.type, col.\"notnull\"
-         FROM (
-             select 1 dbnum, tss.* from temp.sqlite_schema tss
-             UNION ALL select 0 dbnum, mss.* from main.sqlite_schema mss
-             ) s
-         JOIN pragma_index_info(s.name) AS idx
-         LEFT JOIN pragma_table_info(s.tbl_name) as col
-           ON col.cid = idx.cid
-           WHERE s.type = 'index'",
-        None,
-        false,
-    )?
-    .filter_map(|res| res.map(|either| either.right()).transpose())
-    .map(|row| FromRow::from_row(&row?))
-    .collect::<Result<Vec<_>, Error>>()?;
-
     let mut row_info: HashMap<(i64, i64), IntMap<ColumnType>> = HashMap::new();
     for (dbnum, block, colnum, datatype, notnull) in table_block_columns {
-        let row_info = row_info.entry((dbnum, block)).or_default();
+        let row_info = row_info.entry((*dbnum, *block)).or_default();
         row_info.insert(
-            colnum,
+            *colnum,
             ColumnType::Single {
                 datatype: datatype.parse().unwrap_or(DataType::Null),
                 nullable: Some(!notnull),
@@ -561,16 +533,12 @@ impl BranchList {
 }
 
 // Opcode Reference: https://sqlite.org/opcode.html
-pub(super) fn explain(
-    conn: &mut ConnectionState,
+pub fn explain(
+    table_block_columns: &[(i64, i64, i64, String, bool)],
+    program: &[(i64, String, i64, i64, i64, Vec<u8>)],
     query: &str,
 ) -> Result<(Vec<SqliteTypeInfo>, Vec<Option<bool>>), Error> {
-    let root_block_cols = root_block_columns(conn)?;
-    let program: Vec<(i64, String, i64, i64, i64, Vec<u8>)> =
-        execute::iter(conn, &format!("EXPLAIN {query}"), None, false)?
-            .filter_map(|res| res.map(|either| either.right()).transpose())
-            .map(|row| FromRow::from_row(&row?))
-            .collect::<Result<Vec<_>, Error>>()?;
+    let root_block_cols = root_block_columns(table_block_columns)?;
     let program_size = program.len();
 
     let mut logger = crate::logger::QueryPlanLogger::new(query, &program);
