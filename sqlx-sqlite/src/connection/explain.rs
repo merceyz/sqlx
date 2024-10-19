@@ -1140,7 +1140,13 @@ pub fn explain(
                                 }),
                             );
                         }
-                        "date(-1)" | "time(-1)" | "datetime(-1)" | "strftime(-1)" => {
+                        "date(-1)"
+                        | "time(-1)"
+                        | "datetime(-1)"
+                        | "strftime(-1)"
+                        | "current_time(0)"
+                        | "current_date(0)"
+                        | "current_timestamp(0)" => {
                             // date|time|datetime|strftime(...) -> TEXT
                             state.mem.r.insert(
                                 p3,
